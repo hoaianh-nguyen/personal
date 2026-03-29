@@ -1,828 +1,547 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <title>My Wish Board ✦</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;background:#080808;overflow-x:hidden}
+    ::-webkit-scrollbar{width:2px}
+    ::-webkit-scrollbar-thumb{background:rgba(255,140,0,0.3);border-radius:99px}
+    button:active{transform:scale(0.94)!important}
+    input,textarea{color-scheme:dark}
+    input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2)}
+    @keyframes o1{0%,100%{transform:translate(0,0)scale(1)}33%{transform:translate(35px,-25px)scale(1.08)}66%{transform:translate(-18px,18px)scale(0.95)}}
+    @keyframes o2{0%,100%{transform:translate(0,0)scale(1)}40%{transform:translate(-28px,22px)scale(1.06)}80%{transform:translate(22px,-12px)scale(0.94)}}
+    @keyframes o3{0%,100%{transform:translate(0,0)}50%{transform:translate(12px,-30px)}}
+    @keyframes scan{0%{top:-2px;opacity:0}4%{opacity:0.9}96%{opacity:0.2}100%{top:100%;opacity:0}}
+    @keyframes gridpulse{0%,100%{opacity:0.025}50%{opacity:0.055}}
+    @keyframes ring{to{transform:rotate(360deg)}}
+    @keyframes rise{0%{transform:translateY(0)translateX(0)scale(1);opacity:0}10%{opacity:1}50%{transform:translateY(-45vh)translateX(18px)scale(1.1)}90%{opacity:0.4}100%{transform:translateY(-100vh)translateX(-14px)scale(0.5);opacity:0}}
+    @keyframes blink{0%,100%{opacity:0.35}50%{opacity:1}}
+    @keyframes hex{0%,100%{opacity:0.03;transform:scale(1)rotate(0deg)}50%{opacity:0.07;transform:scale(1.04)rotate(28deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-const STORAGE_KEY = "wishlist-v6";
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.10/babel.min.js"></script>
 
-const C = {
-  bg: "#080808",
-  glass: "rgba(255,255,255,0.04)",
-  glassBorder: "rgba(255,255,255,0.08)",
-  glassOrange: "rgba(255,140,0,0.1)",
-  orange: "#FF8C00",
-  orangeDim: "rgba(255,140,0,0.15)",
-  orangeGlow: "rgba(255,140,0,0.4)",
-  orangeText: "#FFA733",
-  text: "#FFFFFF",
-  muted: "rgba(255,255,255,0.45)",
-  sub: "rgba(255,255,255,0.18)",
-};
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
 
-const GRADIENTS = [
-  "linear-gradient(135deg,#FF8C00,#FF4500)",
-  "linear-gradient(135deg,#FF6B6B,#FF8C00)",
-  "linear-gradient(135deg,#FFB300,#FF6B00)",
-  "linear-gradient(135deg,#FF8C00,#9B2FBE)",
-  "linear-gradient(135deg,#FF4500,#FF8C00)",
-  "linear-gradient(135deg,#FFC300,#FF8C00)",
-];
+    const KEY = "wishboard-v1";
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-function isURL(s) {
-  try { const u = new URL((s||"").trim()); return u.protocol.startsWith("http"); }
-  catch { return false; }
-}
-function getDomain(url) {
-  try { return new URL(url).hostname.replace("www.",""); } catch { return url; }
-}
-function getPlatformIcon(url) {
-  const d = getDomain(url);
-  if (d.includes("instagram")) return "📸";
-  if (d.includes("facebook")||d.includes("fb.")) return "👥";
-  if (d.includes("tiktok")) return "🎵";
-  if (d.includes("shopee")) return "🛍";
-  if (d.includes("lazada")) return "📦";
-  if (d.includes("youtube")) return "▶";
-  return "🔗";
-}
+    const C = {
+      bg:"#080808", glass:"rgba(255,255,255,0.04)", border:"rgba(255,255,255,0.08)",
+      oBorder:"rgba(255,140,0,0.22)", oGlass:"rgba(255,140,0,0.08)",
+      orange:"#FF8C00", oText:"#FFA733", text:"#FFFFFF",
+      muted:"rgba(255,255,255,0.45)", sub:"rgba(255,255,255,0.15)",
+    };
 
-// ── Detect platforms that block scrapers ──────────
-const BLOCKED_PLATFORMS = ["instagram.com","facebook.com","fb.com","tiktok.com","twitter.com","x.com"];
-function isBlockedPlatform(url) {
-  const d = getDomain(url);
-  return BLOCKED_PLATFORMS.some(p => d.includes(p));
-}
+    const GRADS = [
+      "linear-gradient(135deg,#FF8C00,#FF4500)",
+      "linear-gradient(135deg,#FF6B6B,#FF8C00)",
+      "linear-gradient(135deg,#FFB300,#FF6B00)",
+      "linear-gradient(135deg,#FF8C00,#9B2FBE)",
+      "linear-gradient(135deg,#FF4500,#FF8C00)",
+      "linear-gradient(135deg,#FFC300,#FF8C00)",
+    ];
 
-// ── Get logo image for a domain ───────────────────
-function getLogoUrl(url) {
-  const domain = getDomain(url);
-  // Google's high-res favicon service
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=256`;
-}
+    const EMOJIS = ["🎁","✈️","👗","💄","📱","🍜","🎮","📚","👟","💍","🏠","🌸","💻","🎨","🐾","⚽"];
+    const BLOCKED = ["instagram.com","facebook.com","fb.com","tiktok.com","twitter.com","x.com"];
 
-// ── Platform brand colours ────────────────────────
-function getPlatformBg(url) {
-  const d = getDomain(url);
-  if (d.includes("instagram")) return "linear-gradient(135deg,#833AB4,#FD1D1D,#F77737)";
-  if (d.includes("facebook")) return "linear-gradient(135deg,#1877F2,#0D5FBF)";
-  if (d.includes("tiktok"))   return "linear-gradient(135deg,#010101,#69C9D0)";
-  if (d.includes("shopee"))   return "linear-gradient(135deg,#EE4D2D,#FF7337)";
-  if (d.includes("lazada"))   return "linear-gradient(135deg,#F3286A,#0F146D)";
-  if (d.includes("youtube"))  return "linear-gradient(135deg,#FF0000,#CC0000)";
-  if (d.includes("twitter")||d.includes("x.com")) return "linear-gradient(135deg,#1DA1F2,#0D8BDA)";
-  return "linear-gradient(135deg,#333,#555)";
-}
+    // ── Helpers ──────────────────────────────────
+    function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+    function isURL(s){ try{ return new URL((s||"").trim()).protocol.startsWith("http"); }catch{ return false; } }
+    function domain(url){ try{ return new URL(url).hostname.replace("www.",""); }catch{ return url; } }
+    function siteIcon(url){
+      const d=domain(url);
+      if(d.includes("instagram")) return "📸";
+      if(d.includes("facebook")||d.includes("fb.")) return "👥";
+      if(d.includes("tiktok")) return "🎵";
+      if(d.includes("shopee")) return "🛍";
+      if(d.includes("lazada")) return "📦";
+      if(d.includes("youtube")) return "▶";
+      return "🔗";
+    }
+    function isBlocked(url){ const d=domain(url); return BLOCKED.some(p=>d.includes(p)); }
+    function logoUrl(url){ return `https://www.google.com/s2/favicons?domain=${domain(url)}&sz=256`; }
+    function platBg(url){
+      const d=domain(url);
+      if(d.includes("instagram")) return "linear-gradient(135deg,#833AB4,#FD1D1D,#F77737)";
+      if(d.includes("facebook")) return "linear-gradient(135deg,#1877F2,#0D5FBF)";
+      if(d.includes("tiktok")) return "linear-gradient(135deg,#010101,#69C9D0)";
+      if(d.includes("shopee")) return "linear-gradient(135deg,#EE4D2D,#FF7337)";
+      if(d.includes("lazada")) return "linear-gradient(135deg,#F3286A,#0F146D)";
+      if(d.includes("youtube")) return "linear-gradient(135deg,#FF0000,#CC0000)";
+      return "linear-gradient(135deg,#333,#555)";
+    }
 
-// ── Fetch preview ─────────────────────────────────
-async function fetchPreview(url) {
-  const domain = getDomain(url);
-  const blocked = isBlockedPlatform(url);
+    async function fetchPreview(url){
+      if(isBlocked(url)) return { title:domain(url), description:"", image:null, publisher:domain(url), blocked:true, logoUrl:logoUrl(url), platformBg:platBg(url) };
+      try{
+        const r=await fetch(`https://api.microlink.io/?url=${encodeURIComponent(url)}&timeout=7000`);
+        const j=await r.json();
+        if(j.status==="success") return { title:j.data.title||domain(url), description:j.data.description||"", image:j.data.image?.url||null, publisher:j.data.publisher||domain(url), blocked:false };
+      }catch{}
+      return { title:domain(url), description:"", image:null, publisher:domain(url), blocked:false };
+    }
 
-  if (!blocked) {
-    // Try microlink for non-social sites (shopee, lazada, general web)
-    try {
-      const res = await fetch(
-        `https://api.microlink.io/?url=${encodeURIComponent(url)}&timeout=8000`
+    // ── Storage (localStorage) ───────────────────
+    function loadData(){ try{ const s=localStorage.getItem(KEY); return s?JSON.parse(s):[]; }catch{ return []; } }
+    function saveData(albums){ try{ localStorage.setItem(KEY,JSON.stringify(albums)); }catch{} }
+
+    // ── Background ───────────────────────────────
+    function BG(){
+      return (
+        <div style={{pointerEvents:"none"}}>
+          <div style={{position:"fixed",top:"-12%",left:"-8%",width:380,height:380,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,140,0,0.2),transparent 70%)",filter:"blur(48px)",zIndex:0,animation:"o1 14s ease-in-out infinite"}}/>
+          <div style={{position:"fixed",bottom:"-18%",right:"-8%",width:460,height:460,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,80,0,0.14),transparent 70%)",filter:"blur(64px)",zIndex:0,animation:"o2 18s ease-in-out infinite"}}/>
+          <div style={{position:"fixed",top:"40%",left:"30%",width:200,height:200,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,200,0,0.06),transparent 70%)",filter:"blur(32px)",zIndex:0,animation:"o3 11s ease-in-out infinite"}}/>
+          <div style={{position:"fixed",left:0,right:0,height:"1.5px",background:"linear-gradient(90deg,transparent,rgba(255,140,0,0.5),rgba(255,210,100,0.85),rgba(255,140,0,0.5),transparent)",filter:"blur(1px)",zIndex:1,animation:"scan 9s linear infinite"}}/>
+          <div style={{position:"fixed",inset:0,zIndex:0,backgroundImage:"linear-gradient(rgba(255,140,0,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,140,0,0.035) 1px,transparent 1px)",backgroundSize:"44px 44px",animation:"gridpulse 7s ease-in-out infinite"}}/>
+          <div style={{position:"fixed",bottom:"20%",left:"-40px",width:160,height:160,zIndex:0,border:"1px solid rgba(255,140,0,0.07)",animation:"hex 10s ease-in-out infinite",clipPath:"polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)"}}/>
+        </div>
       );
-      const j = await res.json();
-      if (j.status === "success") {
-        return {
-          title: j.data.title || domain,
-          description: j.data.description || "",
-          image: j.data.image?.url || null,
-          publisher: j.data.publisher || domain,
-          blocked: false,
-        };
-      }
-    } catch {}
-  }
+    }
 
-  // Blocked platform OR microlink failed → return brand info, no image (user adds photo)
-  return {
-    title: domain,
-    description: blocked ? "⚠️ This platform blocks link previews. Tap + Add Photo above to add a photo manually." : "",
-    image: null,
-    publisher: domain,
-    blocked,
-    logoUrl: getLogoUrl(url),
-    platformBg: getPlatformBg(url),
-  };
-}
-
-async function storageGet(k) {
-  try { const r = await window.storage.get(k,true); return r?.value ? JSON.parse(r.value) : null; } catch { return null; }
-}
-async function storageSet(k,v) {
-  try { await window.storage.set(k, JSON.stringify(v), true); } catch {}
-}
-
-// ── Particles ─────────────────────────────────────
-function Particles() {
-  const particles = Array.from({length: 18}, (_,i) => ({
-    id: i,
-    size: 2 + Math.random() * 3,
-    x: Math.random() * 100,
-    delay: Math.random() * 12,
-    duration: 10 + Math.random() * 14,
-    drift: (Math.random() - 0.5) * 60,
-  }));
-  return (
-    <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
-      {particles.map(p => (
-        <div key={p.id} style={{
-          position:"absolute",
-          left:`${p.x}%`,
-          bottom:"-10px",
-          width:p.size,
-          height:p.size,
-          borderRadius:"50%",
-          background:`rgba(255,140,0,${0.3 + Math.random()*0.4})`,
-          boxShadow:`0 0 ${p.size*3}px rgba(255,140,0,0.6)`,
-          animationName:"particleRise",
-          animationDuration:`${p.duration}s`,
-          animationDelay:`${p.delay}s`,
-          animationTimingFunction:"ease-in-out",
-          animationIterationCount:"infinite",
-          // store drift as css var
-        }} />
-      ))}
-      <style>{`
-        @keyframes particleRise {
-          0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
-          10%  { opacity: 1; }
-          50%  { transform: translateY(-45vh) translateX(20px) scale(1.2); }
-          90%  { opacity: 0.4; }
-          100% { transform: translateY(-100vh) translateX(-15px) scale(0.5); opacity: 0; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// ── Spinning rings decoration ─────────────────────
-function SpinRings() {
-  return (
-    <div style={{position:"fixed",top:"8%",right:"-60px",pointerEvents:"none",zIndex:0,opacity:0.12}}>
-      {[120,90,60].map((s,i) => (
-        <div key={i} style={{
-          position:"absolute",
-          width:s, height:s,
-          borderRadius:"50%",
-          border:`1px solid rgba(255,140,0,${0.8-i*0.2})`,
-          top:(120-s)/2, left:(120-s)/2,
-          animation:`spinRing ${14+i*5}s linear infinite${i%2?" reverse":""}`,
-          boxShadow:i===0?`0 0 12px rgba(255,140,0,0.2)`:"none",
-        }} />
-      ))}
-      <style>{`@keyframes spinRing{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-}
-
-// ── Corner blip ───────────────────────────────────
-function CornerBlips() {
-  return (
-    <>
-      {[[0,0],[0,"auto"],["auto",0],["auto","auto"]].map(([t,b],i) => (
-        <div key={i} style={{
-          position:"fixed",
-          top:t===0?12:"auto", bottom:b==="auto"?"auto":12,
-          left:i%2===0?12:"auto", right:i%2!==0?12:"auto",
-          width:6, height:6, borderRadius:"50%",
-          background:C.orange, opacity:0.4,
-          pointerEvents:"none", zIndex:1,
-          animation:`blip ${1.5+i*0.4}s ease-in-out infinite alternate`,
-        }} />
-      ))}
-      <style>{`@keyframes blip{0%{opacity:0.2;transform:scale(0.8);}100%{opacity:0.8;transform:scale(1.3);}}`}</style>
-    </>
-  );
-}
-
-// ── Animated background ───────────────────────────
-function Background() {
-  return (
-    <>
-      <style>{`
-        @keyframes orbFloat1{0%,100%{transform:translate(0,0)scale(1);}25%{transform:translate(40px,-30px)scale(1.1);}75%{transform:translate(-20px,20px)scale(0.95)}}
-        @keyframes orbFloat2{0%,100%{transform:translate(0,0)scale(1);}33%{transform:translate(-30px,25px)scale(1.08);}66%{transform:translate(25px,-15px)scale(0.94)}}
-        @keyframes orbFloat3{0%,100%{transform:translate(0,0)scale(1);}50%{transform:translate(15px,-35px)scale(1.06)}}
-        @keyframes scanLine{0%{top:-2px;opacity:0;}4%{opacity:0.8;}96%{opacity:0.2;}100%{top:100%;opacity:0;}}
-        @keyframes gridPulse{0%,100%{opacity:0.025;}50%{opacity:0.055;}}
-        @keyframes hexPulse{0%,100%{opacity:0.03;transform:scale(1) rotate(0deg);}50%{opacity:0.07;transform:scale(1.05) rotate(30deg);}}
-      `}</style>
-      {/* Orb 1 – top left */}
-      <div style={{position:"fixed",top:"-12%",left:"-8%",width:380,height:380,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,140,0,0.2) 0%,transparent 70%)",filter:"blur(48px)",pointerEvents:"none",zIndex:0,animation:"orbFloat1 14s ease-in-out infinite"}} />
-      {/* Orb 2 – bottom right */}
-      <div style={{position:"fixed",bottom:"-18%",right:"-8%",width:460,height:460,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,80,0,0.14) 0%,transparent 70%)",filter:"blur(64px)",pointerEvents:"none",zIndex:0,animation:"orbFloat2 18s ease-in-out infinite"}} />
-      {/* Orb 3 – center float */}
-      <div style={{position:"fixed",top:"40%",left:"30%",width:200,height:200,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,200,0,0.06) 0%,transparent 70%)",filter:"blur(32px)",pointerEvents:"none",zIndex:0,animation:"orbFloat3 11s ease-in-out infinite"}} />
-      {/* Scan line */}
-      <div style={{position:"fixed",left:0,right:0,height:"1.5px",background:"linear-gradient(90deg,transparent,rgba(255,140,0,0.5),rgba(255,200,100,0.8),rgba(255,140,0,0.5),transparent)",filter:"blur(1px)",pointerEvents:"none",zIndex:1,animation:"scanLine 9s linear infinite"}} />
-      {/* Grid */}
-      <div style={{position:"fixed",inset:0,zIndex:0,pointerEvents:"none",backgroundImage:"linear-gradient(rgba(255,140,0,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,140,0,0.035) 1px,transparent 1px)",backgroundSize:"44px 44px",animation:"gridPulse 7s ease-in-out infinite"}} />
-      {/* Hex shape */}
-      <div style={{position:"fixed",bottom:"20%",left:"-40px",width:160,height:160,pointerEvents:"none",zIndex:0,border:"1px solid rgba(255,140,0,0.08)",transform:"rotate(0deg)",animation:"hexPulse 10s ease-in-out infinite",clipPath:"polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%)"}} />
-    </>
-  );
-}
-
-// ── Glass card ────────────────────────────────────
-function GlassCard({ children, style={}, orange=false, onClick, hover=false }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={()=>hover&&setHov(true)}
-      onMouseLeave={()=>hover&&setHov(false)}
-      style={{
-        background: orange ? "rgba(255,140,0,0.07)" : C.glass,
-        border: `1px solid ${orange ? "rgba(255,140,0,0.22)" : C.glassBorder}`,
-        borderRadius:16, backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)",
-        transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",
-        transform: hov ? "translateY(-3px) scale(1.01)" : "none",
-        boxShadow: hov ? `0 10px 36px rgba(255,140,0,0.14),inset 0 1px 0 rgba(255,255,255,0.07)` : `inset 0 1px 0 rgba(255,255,255,0.03)`,
-        cursor: onClick ? "pointer" : "default",
-        position:"relative", overflow:"hidden",
-        ...style,
-      }}
-    >
-      {hov && <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,background:"linear-gradient(105deg,transparent 35%,rgba(255,200,100,0.05) 50%,transparent 65%)",animation:"shimmer 0.55s ease-out"}} />}
-      {children}
-    </div>
-  );
-}
-
-// ── Toast ─────────────────────────────────────────
-function Toast({ msg, visible }) {
-  return (
-    <div style={{
-      position:"fixed",bottom:90,left:"50%",
-      transform:`translateX(-50%) translateY(${visible?0:12}px)`,
-      opacity:visible?1:0,
-      transition:"all 0.28s cubic-bezier(0.34,1.4,0.64,1)",
-      background:"rgba(255,140,0,0.1)",backdropFilter:"blur(20px)",
-      color:C.orangeText,padding:"10px 22px",borderRadius:99,
-      fontSize:13,fontWeight:600,zIndex:9999,whiteSpace:"nowrap",pointerEvents:"none",
-      border:"1px solid rgba(255,140,0,0.3)",
-      boxShadow:"0 4px 24px rgba(255,140,0,0.15)",
-    }}>{msg}</div>
-  );
-}
-
-// ── Sheet ─────────────────────────────────────────
-function Sheet({ open, onClose, title, children }) {
-  return (
-    <div onClick={onClose} style={{
-      position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(10px)",
-      display:"flex",alignItems:"flex-end",justifyContent:"center",
-      zIndex:300,opacity:open?1:0,pointerEvents:open?"all":"none",transition:"opacity 0.22s",
-    }}>
-      <div onClick={e=>e.stopPropagation()} style={{
-        background:"rgba(10,8,6,0.97)",backdropFilter:"blur(40px)",
-        borderRadius:"24px 24px 0 0",
-        width:"100%",maxWidth:500,maxHeight:"92vh",overflowY:"auto",
-        transform:`translateY(${open?0:"100%"})`,
-        transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)",
-        border:"1px solid rgba(255,140,0,0.14)",borderBottom:"none",
-        padding:"14px 20px 48px",
-        boxShadow:"0 -24px 60px rgba(255,140,0,0.07)",
-      }}>
-        <div style={{width:36,height:3,background:"rgba(255,140,0,0.35)",borderRadius:99,margin:"0 auto 16px"}} />
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
-          <div style={{width:3,height:16,background:C.orange,borderRadius:99,boxShadow:`0 0 8px ${C.orange}`}} />
-          <p style={{fontSize:15,fontWeight:700,color:C.text,letterSpacing:"0.3px"}}>{title}</p>
+    function Particles(){
+      const pts = useRef(Array.from({length:16},(_,i)=>({ id:i, sz:2+Math.random()*3, x:Math.random()*100, delay:Math.random()*14, dur:10+Math.random()*14 }))).current;
+      return (
+        <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
+          {pts.map(p=>(
+            <div key={p.id} style={{position:"absolute",left:`${p.x}%`,bottom:-8,width:p.sz,height:p.sz,borderRadius:"50%",background:`rgba(255,140,0,0.5)`,boxShadow:`0 0 ${p.sz*3}px rgba(255,140,0,0.6)`,animation:`rise ${p.dur}s ${p.delay}s ease-in-out infinite`}}/>
+          ))}
         </div>
-        {children}
-      </div>
-    </div>
-  );
-}
+      );
+    }
 
-function FInput({ value, onChange, placeholder, rows, onKeyDown }) {
-  const base = {
-    width:"100%",padding:"12px 14px",boxSizing:"border-box",
-    background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",
-    borderRadius:10,color:C.text,fontSize:14,
-    fontFamily:"inherit",outline:"none",marginBottom:10,transition:"border-color 0.2s",
-  };
-  if (rows) return <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{...base,resize:"none",lineHeight:1.5}} />;
-  return <input value={value} onChange={onChange} placeholder={placeholder} onKeyDown={onKeyDown} style={base} />;
-}
-
-function Btn({ children, onClick, disabled, ghost, style:s={} }) {
-  return (
-    <button onClick={onClick} disabled={disabled} style={{
-      flex:1,padding:"12px 8px",borderRadius:11,
-      border: ghost ? "1px solid rgba(255,255,255,0.08)" : "none",
-      background: ghost ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg,#FF8C00,#FF4500)",
-      color: ghost ? C.muted : "#fff",
-      fontSize:14,fontWeight:700,cursor:disabled?"not-allowed":"pointer",
-      fontFamily:"inherit",opacity:disabled?0.3:1,
-      boxShadow: (!ghost&&!disabled) ? "0 4px 18px rgba(255,140,0,0.28)" : "none",
-      transition:"opacity 0.15s",
-      ...s,
-    }}>{children}</button>
-  );
-}
-
-function LiveDot() {
-  return <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.orange,marginRight:6,animation:"dotBlink 1.4s ease-in-out infinite"}} />;
-}
-
-function AlbumCover({ album, size }) {
-  const img = album.items?.find(i=>i.photo)?.photo || album.items?.find(i=>i.preview?.image)?.preview?.image;
-  if (img) return (
-    <div style={{width:size,height:size,borderRadius:12,overflow:"hidden",flexShrink:0}}>
-      <img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"} />
-    </div>
-  );
-  return (
-    <div style={{
-      width:size,height:size,borderRadius:12,flexShrink:0,
-      background:GRADIENTS[album.colorIndex%GRADIENTS.length],
-      display:"flex",alignItems:"center",justifyContent:"center",
-      fontSize:typeof size==="number"?size*0.38:28,
-      boxShadow:"0 4px 20px rgba(255,140,0,0.2)",
-    }}>{album.emoji||"🎁"}</div>
-  );
-}
-
-function AlbumCard({ album, onClick }) {
-  return (
-    <GlassCard onClick={onClick} hover style={{padding:14,cursor:"pointer"}}>
-      <div style={{width:"100%",paddingBottom:"100%",position:"relative",marginBottom:10}}>
-        <div style={{position:"absolute",inset:0,borderRadius:10,overflow:"hidden"}}>
-          <AlbumCover album={album} size="100%" />
+    function Rings(){
+      return (
+        <div style={{position:"fixed",top:"6%",right:"-55px",pointerEvents:"none",zIndex:0,width:120,height:120}}>
+          {[120,88,58].map((s,i)=>(
+            <div key={i} style={{position:"absolute",width:s,height:s,borderRadius:"50%",border:`1px solid rgba(255,140,0,${0.12-i*0.03})`,top:(120-s)/2,left:(120-s)/2,animation:`ring ${13+i*5}s linear infinite${i%2?" reverse":""}`,boxShadow:i===0?"0 0 10px rgba(255,140,0,0.15)":"none"}}/>
+          ))}
         </div>
-        <div style={{
-          position:"absolute",top:8,right:8,
-          background:"rgba(0,0,0,0.65)",backdropFilter:"blur(8px)",
-          borderRadius:99,padding:"3px 8px",
-          fontSize:10,fontWeight:700,color:C.orangeText,
-          border:"1px solid rgba(255,140,0,0.25)",
-        }}>{album.items?.length||0}</div>
-      </div>
-      <div style={{fontSize:13,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:2}}>
-        {album.emoji} {album.name}
-      </div>
-      <div style={{fontSize:11,color:C.muted}}>
-        {(album.items||[]).filter(i=>i.claimed).length} claimed
-      </div>
-    </GlassCard>
-  );
-}
+      );
+    }
 
-function WishCard({ item, onClaim, onUnclaim, onDelete, readonly }) {
-  const hasLink = isURL(item.text);
-  return (
-    <div style={{animation:"fadeUp 0.28s ease",marginBottom:12}}>
-      <GlassCard orange={item.claimed} style={{overflow:"hidden"}}>
-        {/* 1. User-uploaded photo — always wins */}
-        {item.photo && (
-          <img src={item.photo} alt="" style={{width:"100%",height:200,objectFit:"cover",display:"block"}} />
-        )}
-        {/* 2. Real OG image from non-blocked sites (Shopee, Lazada, general web) */}
-        {!item.photo && item.preview?.image && (
-          <div style={{position:"relative",overflow:"hidden",height:190}}>
-            <img src={item.preview.image} alt={item.preview.title||""}
-              referrerPolicy="no-referrer"
-              style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}
-              onError={e=>{ e.target.parentNode.style.display="none"; }}
-            />
-            <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 50%,rgba(8,8,8,0.75))"}} />
+    function Blips(){
+      const positions=[{top:14,left:14},{top:14,right:14},{bottom:14,left:14},{bottom:14,right:14}];
+      return (
+        <>
+          {positions.map((pos,i)=>(
+            <div key={i} style={{position:"fixed",...pos,width:5,height:5,borderRadius:"50%",background:C.orange,opacity:0.4,pointerEvents:"none",zIndex:1,animation:`blink ${1.4+i*0.35}s ease-in-out ${i*0.2}s infinite alternate`}}/>
+          ))}
+        </>
+      );
+    }
+
+    // ── Glass card ───────────────────────────────
+    function Glass({ children, orange=false, hover=false, onClick, style:s={} }){
+      const [h,setH]=useState(false);
+      return (
+        <div onClick={onClick} onMouseEnter={()=>hover&&setH(true)} onMouseLeave={()=>hover&&setH(false)} style={{background:orange?C.oGlass:C.glass,border:`1px solid ${orange?C.oBorder:C.border}`,borderRadius:16,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",transition:"all 0.2s",cursor:onClick?"pointer":"default",transform:h?"translateY(-2px) scale(1.01)":"none",boxShadow:h?`0 10px 32px rgba(255,140,0,0.13),inset 0 1px 0 rgba(255,255,255,0.06)`:"inset 0 1px 0 rgba(255,255,255,0.03)",position:"relative",overflow:"hidden",...s}}>
+          {h&&<div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,background:"linear-gradient(105deg,transparent 35%,rgba(255,200,100,0.05) 50%,transparent 65%)",animation:"shimmer 0.5s ease-out"}}/>}
+          {children}
+        </div>
+      );
+    }
+
+    // ── Toast ─────────────────────────────────────
+    function Toast({ msg, show }){
+      return <div style={{position:"fixed",bottom:88,left:"50%",transform:`translateX(-50%) translateY(${show?0:10}px)`,opacity:show?1:0,transition:"all 0.28s cubic-bezier(0.34,1.4,0.64,1)",background:"rgba(255,140,0,0.1)",backdropFilter:"blur(20px)",color:C.oText,padding:"10px 22px",borderRadius:99,fontSize:13,fontWeight:600,zIndex:9999,whiteSpace:"nowrap",pointerEvents:"none",border:"1px solid rgba(255,140,0,0.28)",boxShadow:"0 4px 24px rgba(255,140,0,0.14)"}}>{msg}</div>;
+    }
+
+    // ── Sheet ─────────────────────────────────────
+    function Sheet({ open, onClose, title, children }){
+      return (
+        <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(10px)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:300,opacity:open?1:0,pointerEvents:open?"all":"none",transition:"opacity 0.22s"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"rgba(10,8,6,0.97)",backdropFilter:"blur(40px)",borderRadius:"24px 24px 0 0",width:"100%",maxWidth:500,maxHeight:"92vh",overflowY:"auto",transform:`translateY(${open?0:"100%"})`,transition:"transform 0.32s cubic-bezier(0.32,0.72,0,1)",border:"1px solid rgba(255,140,0,0.13)",borderBottom:"none",padding:"14px 20px 48px",boxShadow:"0 -24px 60px rgba(255,140,0,0.07)"}}>
+            <div style={{width:36,height:3,background:"rgba(255,140,0,0.35)",borderRadius:99,margin:"0 auto 16px"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+              <div style={{width:3,height:16,background:C.orange,borderRadius:99,boxShadow:`0 0 8px ${C.orange}`}}/>
+              <p style={{fontSize:15,fontWeight:700,color:C.text}}>{title}</p>
+            </div>
+            {children}
           </div>
-        )}
-        {/* 3. Platform brand banner for blocked sites (Instagram, TikTok, Facebook…) */}
-        {!item.photo && !item.preview?.image && item.preview?.blocked && (
-          <div style={{
-            width:"100%", height:120,
-            background: item.preview.platformBg || "linear-gradient(135deg,#333,#555)",
-            display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            gap:8, position:"relative", overflow:"hidden",
-          }}>
-            <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.35)"}} />
-            <img src={item.preview.logoUrl} alt="" style={{width:48,height:48,borderRadius:12,zIndex:1,boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}
-              onError={e=>e.target.style.display="none"} />
-            <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.85)",zIndex:1,letterSpacing:"1px"}}>
-              {getPlatformIcon(item.text)} {getDomain(item.text).toUpperCase()}
-            </div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.45)",zIndex:1,letterSpacing:"0.3px"}}>
-              Add a photo for a better preview ↑
-            </div>
-          </div>
-        )}
-
-        <div style={{padding:"14px 16px 10px"}}>
-          {hasLink ? (
-            <>
-              <div style={{fontSize:10,color:C.orangeText,fontWeight:700,marginBottom:5,letterSpacing:"1.2px",display:"flex",gap:5,alignItems:"center"}}>
-                {getPlatformIcon(item.text)} {(item.preview?.publisher||getDomain(item.text)).toUpperCase()}
-              </div>
-              <div style={{fontSize:15,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:item.preview?.description?4:8}}>
-                {item.preview?.title||getDomain(item.text)}
-              </div>
-              {item.preview?.description && (
-                <div style={{fontSize:12,color:C.muted,lineHeight:1.45,marginBottom:8,
-                  overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
-                  {item.preview.description}
-                </div>
-              )}
-              <a href={item.text} target="_blank" rel="noopener noreferrer"
-                style={{fontSize:11,color:C.orangeText,textDecoration:"none",fontWeight:700,letterSpacing:"0.8px"}}>
-                OPEN LINK ↗
-              </a>
-            </>
-          ) : item.text ? (
-            <div style={{fontSize:15,fontWeight:600,color:C.text,lineHeight:1.5,wordBreak:"break-word"}}>
-              {item.text}
-            </div>
-          ) : (
-            <div style={{fontSize:13,color:C.muted}}>📷 Photo idea</div>
-          )}
-          {item.note && (
-            <div style={{fontSize:12,color:C.muted,marginTop:10,lineHeight:1.4,padding:"8px 10px",background:"rgba(255,255,255,0.02)",borderRadius:8,borderLeft:"2px solid rgba(255,140,0,0.3)"}}>
-              {item.note}
-            </div>
-          )}
         </div>
+      );
+    }
 
-        {!readonly && (
-          <div style={{padding:"10px 16px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
-            {item.claimed ? (
-              <>
-                <div style={{flex:1,background:"rgba(255,140,0,0.1)",border:"1px solid rgba(255,140,0,0.2)",color:C.orangeText,borderRadius:10,padding:"8px 12px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:C.orange,display:"inline-block",animation:"dotBlink 1.4s infinite"}} />
-                  {item.claimedBy} is gifting this
-                </div>
-                <button onClick={()=>onUnclaim(item.id)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"8px 12px",color:C.muted,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>↩</button>
-              </>
-            ) : (
-              <Btn onClick={()=>onClaim(item.id,item.preview?.title||item.text||"this idea")} style={{flex:1}}>
-                🎀 I'll gift this
-              </Btn>
+    function FInput({ value, onChange, placeholder, rows, onKeyDown }){
+      const s={width:"100%",padding:"12px 14px",boxSizing:"border-box",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,color:C.text,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:10};
+      if(rows) return <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{...s,resize:"none",lineHeight:1.5}}/>;
+      return <input value={value} onChange={onChange} placeholder={placeholder} onKeyDown={onKeyDown} style={s}/>;
+    }
+
+    function PrimaryBtn({ children, onClick, disabled }){
+      return <button onClick={onClick} disabled={disabled} style={{flex:2,padding:"12px 8px",borderRadius:11,border:"none",background:disabled?"rgba(255,140,0,0.2)":"linear-gradient(135deg,#FF8C00,#FF4500)",color:disabled?"rgba(255,255,255,0.3)":"#fff",fontSize:14,fontWeight:700,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:disabled?"none":"0 4px 18px rgba(255,140,0,0.28)"}}>{children}</button>;
+    }
+    function GhostBtn({ children, onClick }){
+      return <button onClick={onClick} style={{flex:1,padding:"12px 8px",borderRadius:11,border:"1px solid rgba(255,255,255,0.08)",background:"rgba(255,255,255,0.04)",color:C.muted,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{children}</button>;
+    }
+    function Dot(){ return <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.orange,marginRight:6,animation:"blink 1.4s ease-in-out infinite"}}/>; }
+
+    function Cover({ album, size }){
+      const img=album.items?.find(i=>i.photo)?.photo||album.items?.find(i=>i.preview?.image)?.preview?.image;
+      if(img) return <div style={{width:size,height:size,borderRadius:12,overflow:"hidden",flexShrink:0}}><img src={img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/></div>;
+      return <div style={{width:size,height:size,borderRadius:12,flexShrink:0,background:GRADS[album.colorIndex%GRADS.length],display:"flex",alignItems:"center",justifyContent:"center",fontSize:typeof size==="number"?size*0.38:28,boxShadow:"0 4px 20px rgba(255,140,0,0.2)"}}>{album.emoji||"🎁"}</div>;
+    }
+
+    function AlbumCard({ album, onClick }){
+      return (
+        <Glass onClick={onClick} hover style={{padding:14,cursor:"pointer"}}>
+          <div style={{width:"100%",paddingBottom:"100%",position:"relative",marginBottom:10}}>
+            <div style={{position:"absolute",inset:0,borderRadius:10,overflow:"hidden"}}><Cover album={album} size="100%"/></div>
+            <div style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(8px)",borderRadius:99,padding:"3px 8px",fontSize:10,fontWeight:700,color:C.oText,border:"1px solid rgba(255,140,0,0.25)"}}>{album.items?.length||0}</div>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:2}}>{album.emoji} {album.name}</div>
+          <div style={{fontSize:11,color:C.muted}}>{(album.items||[]).filter(i=>i.claimed).length} claimed</div>
+        </Glass>
+      );
+    }
+
+    function IdeaCard({ item, onClaim, onUnclaim, onDelete, readonly }){
+      const linked=isURL(item.text);
+      return (
+        <div style={{animation:"fadeUp 0.28s ease",marginBottom:12}}>
+          <Glass orange={item.claimed} style={{overflow:"hidden"}}>
+            {item.photo&&<img src={item.photo} alt="" style={{width:"100%",height:200,objectFit:"cover",display:"block"}}/>}
+            {!item.photo&&item.preview?.image&&(
+              <div style={{position:"relative",height:190,overflow:"hidden"}}>
+                <img src={item.preview.image} alt="" referrerPolicy="no-referrer" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={e=>e.target.parentNode.style.display="none"}/>
+                <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 50%,rgba(8,8,8,0.75))"}}/>
+              </div>
             )}
-            <button onClick={()=>onDelete(item.id)} style={{background:"rgba(255,50,50,0.06)",border:"1px solid rgba(255,50,50,0.15)",borderRadius:9,padding:"8px 12px",color:"rgba(255,100,100,0.7)",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>🗑</button>
-          </div>
-        )}
-      </GlassCard>
-    </div>
-  );
-}
-
-// ── Main ──────────────────────────────────────────
-export default function App() {
-  const [albums, setAlbums] = useState([]);
-  const albumsRef = useRef([]);
-  const [loaded, setLoaded] = useState(false);
-  const [view, setView] = useState("home");
-  const [activeTab, setActiveTab] = useState("Collections");
-
-  const [newAlbumOpen, setNewAlbumOpen] = useState(false);
-  const [addWishOpen, setAddWishOpen] = useState(false);
-  const [claimSheet, setClaimSheet] = useState(null);
-
-  const [aName, setAName] = useState(""); const [aEmoji, setAEmoji] = useState("🎁");
-  const [wText, setWText] = useState(""); const [wNote, setWNote] = useState("");
-  const [wPhoto, setWPhoto] = useState(null);
-  const [wPreview, setWPreview] = useState(null);
-  const [wPreviewLoading, setWPreviewLoading] = useState(false);
-  const [claimerName, setClaimerName] = useState("");
-  const [toast, setToast] = useState({msg:"",visible:false});
-
-  const toastT = useRef(null); const previewTimer = useRef(null); const fileRef = useRef(null);
-
-  useEffect(()=>{ albumsRef.current = albums; },[albums]);
-
-  const showToast = (msg) => {
-    clearTimeout(toastT.current);
-    setToast({msg,visible:true});
-    toastT.current = setTimeout(()=>setToast(t=>({...t,visible:false})),2600);
-  };
-
-  useEffect(()=>{
-    (async()=>{
-      const saved = await storageGet(STORAGE_KEY);
-      if (saved?.albums) { setAlbums(saved.albums); albumsRef.current=saved.albums; }
-      setLoaded(true);
-    })();
-    const t = setInterval(async()=>{
-      const saved = await storageGet(STORAGE_KEY);
-      if (saved?.albums) setAlbums(saved.albums);
-    },12000);
-    return ()=>clearInterval(t);
-  },[]);
-
-  const persist = useCallback(async(next)=>{
-    albumsRef.current=next; setAlbums(next);
-    await storageSet(STORAGE_KEY,{albums:next});
-  },[]);
-
-  useEffect(()=>{
-    clearTimeout(previewTimer.current);
-    setWPreview(null);
-    if (!isURL(wText.trim())) { setWPreviewLoading(false); return; }
-    setWPreviewLoading(true);
-    previewTimer.current = setTimeout(async()=>{
-      const p = await fetchPreview(wText.trim());
-      setWPreview(p); setWPreviewLoading(false);
-    },900);
-    return ()=>clearTimeout(previewTimer.current);
-  },[wText]);
-
-  const createAlbum = async()=>{
-    if (!aName.trim()) return;
-    const a={id:uid(),name:aName.trim(),emoji:aEmoji,colorIndex:albumsRef.current.length,items:[],createdAt:Date.now()};
-    await persist([a,...albumsRef.current]);
-    setAName(""); setAEmoji("🎁"); setNewAlbumOpen(false);
-    showToast("✦ Collection created");
-  };
-  const deleteAlbum = async(id)=>{
-    await persist(albumsRef.current.filter(a=>a.id!==id));
-    setView("home"); showToast("Collection removed");
-  };
-  const addWish = async()=>{
-    if (!wText.trim()&&!wPhoto) return;
-    const w={id:uid(),text:wText.trim(),note:wNote.trim(),photo:wPhoto,preview:isURL(wText.trim())?wPreview:null,claimed:false,claimedBy:"",addedAt:Date.now()};
-    await persist(albumsRef.current.map(a=>a.id===view?{...a,items:[w,...a.items]}:a));
-    setWText(""); setWNote(""); setWPhoto(null); setWPreview(null);
-    setAddWishOpen(false); showToast("✦ Idea added");
-  };
-  const claimWish = async(wishId)=>{
-    if (!claimerName.trim()) return;
-    await persist(albumsRef.current.map(a=>a.id===view?{...a,items:a.items.map(i=>i.id===wishId?{...i,claimed:true,claimedBy:claimerName.trim()}:i)}:a));
-    showToast(`✦ ${claimerName} is gifting this`);
-    setClaimSheet(null); setClaimerName("");
-  };
-  const unclaimWish = async(wishId)=>{
-    await persist(albumsRef.current.map(a=>a.id===view?{...a,items:a.items.map(i=>i.id===wishId?{...i,claimed:false,claimedBy:""}:i)}:a));
-    showToast("Unclaimed");
-  };
-  const deleteWish = async(wishId)=>{
-    await persist(albumsRef.current.map(a=>a.id===view?{...a,items:a.items.filter(i=>i.id!==wishId)}:a));
-    showToast("Removed");
-  };
-  const handlePhoto = (e)=>{
-    const file=e.target.files?.[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=ev=>setWPhoto(ev.target.result);
-    reader.readAsDataURL(file); e.target.value="";
-  };
-  const handleShare = ()=>{
-    if (navigator.clipboard) navigator.clipboard.writeText(window.location.href).then(()=>showToast("✦ Link copied — share it!"));
-    else showToast("Copy the page URL to share");
-  };
-
-  const currentAlbum = albums.find(a=>a.id===view);
-  const allWishes = albums.flatMap(a=>a.items||[]);
-  const claimedWishes = allWishes.filter(i=>i.claimed);
-  const TABS = [{label:"Collections",icon:"◈"},{label:"All Ideas",icon:"◇"},{label:"Claimed",icon:"◆"}];
-  const EMOJIS = ["🎁","✈️","👗","💄","📱","🍜","🎮","📚","👟","💍","🏠","🌸","💻","🎨","🐾","⚽"];
-
-  return (
-    <div style={{fontFamily:"'Space Grotesk',sans-serif",background:C.bg,minHeight:"100vh",color:C.text,position:"relative"}}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        body{background:${C.bg};overflow-x:hidden;}
-        ::-webkit-scrollbar{width:2px;}
-        ::-webkit-scrollbar-thumb{background:rgba(255,140,0,0.3);border-radius:99px;}
-        button:active{transform:scale(0.94)!important;}
-        input,textarea{color-scheme:dark;}
-        input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.2);}
-        @keyframes dotBlink{0%,100%{opacity:0.4;}50%{opacity:1;}}
-        @keyframes shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(200%);}}
-        @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
-        @keyframes spin{to{transform:rotate(360deg)}}
-      `}</style>
-
-      <Background />
-      <Particles />
-      <SpinRings />
-      <CornerBlips />
-
-      <div style={{maxWidth:500,margin:"0 auto",minHeight:"100vh",display:"flex",flexDirection:"column",position:"relative",zIndex:2}}>
-
-        {/* Header */}
-        <div style={{padding:"18px 18px 0",position:"sticky",top:0,zIndex:50,background:"rgba(8,8,8,0.85)",backdropFilter:"blur(24px)",borderBottom:"1px solid rgba(255,140,0,0.1)"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:14}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {view!=="home" && (
-                <button onClick={()=>setView("home")} style={{background:"none",border:"none",color:C.text,fontSize:20,cursor:"pointer",lineHeight:1,paddingRight:4,opacity:0.7}}>‹</button>
-              )}
-              <div>
-                <div style={{fontSize:10,color:C.orangeText,fontWeight:700,letterSpacing:"2px",textTransform:"uppercase",marginBottom:2}}>
-                  <LiveDot />{view==="home"?"Wish Board":"Collection"}
-                </div>
-                <div style={{fontSize:20,fontWeight:700,letterSpacing:"-0.3px"}}>
-                  {view==="home" ? "My Wish Board" : currentAlbum?.name||""}
-                </div>
+            {!item.photo&&!item.preview?.image&&item.preview?.blocked&&(
+              <div style={{height:116,background:item.preview.platformBg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:7,position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.38)"}}/>
+                <img src={item.preview.logoUrl} alt="" style={{width:44,height:44,borderRadius:12,zIndex:1,boxShadow:"0 4px 14px rgba(0,0,0,0.5)"}} onError={e=>e.target.style.display="none"}/>
+                <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.85)",zIndex:1,letterSpacing:"0.8px"}}>{siteIcon(item.text)} {domain(item.text).toUpperCase()}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",zIndex:1}}>Add a photo above for a thumbnail</div>
               </div>
+            )}
+            <div style={{padding:"14px 16px 10px"}}>
+              {linked?(
+                <>
+                  <div style={{fontSize:10,color:C.oText,fontWeight:700,marginBottom:5,letterSpacing:"1.2px"}}>{siteIcon(item.text)} {(item.preview?.publisher||domain(item.text)).toUpperCase()}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:C.text,lineHeight:1.4,marginBottom:4}}>{item.preview?.title||domain(item.text)}</div>
+                  {item.preview?.description&&<div style={{fontSize:12,color:C.muted,lineHeight:1.45,marginBottom:8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{item.preview.description}</div>}
+                  <a href={item.text} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.oText,textDecoration:"none",fontWeight:700,letterSpacing:"0.8px"}}>OPEN LINK ↗</a>
+                </>
+              ):item.text?(
+                <div style={{fontSize:15,fontWeight:600,color:C.text,lineHeight:1.5,wordBreak:"break-word"}}>{item.text}</div>
+              ):(
+                <div style={{fontSize:13,color:C.muted}}>📷 Photo idea</div>
+              )}
+              {item.note&&<div style={{fontSize:12,color:C.muted,marginTop:10,lineHeight:1.4,padding:"8px 10px",background:"rgba(255,255,255,0.02)",borderRadius:8,borderLeft:"2px solid rgba(255,140,0,0.3)"}}>{item.note}</div>}
             </div>
-            <button onClick={handleShare} style={{background:"rgba(255,140,0,0.1)",border:"1px solid rgba(255,140,0,0.25)",borderRadius:10,padding:"8px 14px",color:C.orangeText,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",letterSpacing:"0.8px"}}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-              SHARE
-            </button>
-          </div>
-          {view==="home" && (
-            <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:3,border:"1px solid rgba(255,255,255,0.05)"}}>
-              {TABS.map(t=>(
-                <button key={t.label} onClick={()=>setActiveTab(t.label)} style={{
-                  flex:1,padding:"8px 4px",border:"none",borderRadius:7,cursor:"pointer",
-                  background:activeTab===t.label?"rgba(255,140,0,0.12)":"transparent",
-                  color:activeTab===t.label?C.orangeText:C.muted,
-                  fontSize:11,fontWeight:700,fontFamily:"inherit",letterSpacing:"0.5px",transition:"all 0.15s",
-                  borderBottom:activeTab===t.label?`2px solid ${C.orange}`:"2px solid transparent",
-                }}>{t.icon} {t.label}</button>
-              ))}
-            </div>
-          )}
+            {!readonly&&(
+              <div style={{padding:"10px 16px 14px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",alignItems:"center",gap:8}}>
+                {item.claimed?(
+                  <>
+                    <div style={{flex:1,background:"rgba(255,140,0,0.1)",border:"1px solid rgba(255,140,0,0.2)",color:C.oText,borderRadius:10,padding:"8px 12px",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:C.orange,display:"inline-block",flexShrink:0,animation:"blink 1.4s infinite"}}/>
+                      {item.claimedBy} is gifting this
+                    </div>
+                    <button onClick={()=>onUnclaim(item.id)} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:9,padding:"8px 12px",color:C.muted,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>↩</button>
+                  </>
+                ):(
+                  <button onClick={()=>onClaim(item.id,item.preview?.title||item.text||"this idea")} style={{flex:1,padding:"9px 12px",borderRadius:9,border:"1px solid rgba(255,140,0,0.35)",background:"rgba(255,140,0,0.08)",color:C.oText,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                    🎀 I'll gift this
+                  </button>
+                )}
+                <button onClick={()=>onDelete(item.id)} style={{background:"rgba(255,50,50,0.05)",border:"1px solid rgba(255,50,50,0.15)",borderRadius:9,padding:"8px 12px",color:"rgba(255,100,100,0.7)",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>🗑</button>
+              </div>
+            )}
+          </Glass>
         </div>
+      );
+    }
 
-        {/* Content */}
-        <div style={{flex:1,padding:"18px 16px 100px"}}>
-          {view==="home" && loaded && (
-            <>
-              {albums.length>0 && (
-                <div style={{display:"flex",gap:8,marginBottom:18}}>
-                  {[{label:"COLLECTIONS",val:albums.length},{label:"IDEAS",val:allWishes.length},{label:"CLAIMED",val:claimedWishes.length}].map(s=>(
-                    <GlassCard key={s.label} style={{flex:1,padding:"10px 12px",textAlign:"center"}}>
-                      <div style={{fontSize:17,fontWeight:800,color:C.orangeText}}>{s.val}</div>
-                      <div style={{fontSize:9,color:C.muted,letterSpacing:"1.5px",marginTop:2}}>{s.label}</div>
-                    </GlassCard>
+    // ── APP ──────────────────────────────────────
+    function App(){
+      const [albums,setAlbums]=useState(()=>loadData());
+      const [view,setView]=useState("home");
+      const [tab,setTab]=useState("Collections");
+      const [colSheet,setColSheet]=useState(false);
+      const [ideaSheet,setIdeaSheet]=useState(false);
+      const [claimSheet,setClaimSheet]=useState(null);
+      const [cName,setCName]=useState("");
+      const [cEmoji,setCEmoji]=useState("🎁");
+      const [iText,setIText]=useState("");
+      const [iNote,setINote]=useState("");
+      const [iPhoto,setIPhoto]=useState(null);
+      const [iPrev,setIPrev]=useState(null);
+      const [iPrevLoading,setIPrevLoading]=useState(false);
+      const [claimer,setClaimer]=useState("");
+      const [toast,setToast]=useState({msg:"",show:false});
+      const toastRef=useRef(null);
+      const prevTimer=useRef(null);
+      const fileRef=useRef(null);
+      const firstRender=useRef(true);
+
+      // Auto-save on change
+      useEffect(()=>{
+        if(firstRender.current){ firstRender.current=false; return; }
+        saveData(albums);
+      },[albums]);
+
+      function showToast(msg){
+        clearTimeout(toastRef.current);
+        setToast({msg,show:true});
+        toastRef.current=setTimeout(()=>setToast(t=>({...t,show:false})),2600);
+      }
+
+      // Link preview
+      useEffect(()=>{
+        clearTimeout(prevTimer.current);
+        setIPrev(null);
+        if(!isURL(iText.trim())){ setIPrevLoading(false); return; }
+        setIPrevLoading(true);
+        prevTimer.current=setTimeout(()=>{
+          fetchPreview(iText.trim()).then(p=>{ setIPrev(p); setIPrevLoading(false); });
+        },900);
+        return ()=>clearTimeout(prevTimer.current);
+      },[iText]);
+
+      function createCollection(){
+        if(!cName.trim()) return;
+        const col={id:uid(),name:cName.trim(),emoji:cEmoji,colorIndex:albums.length,items:[],createdAt:Date.now()};
+        setAlbums(prev=>[col,...prev]);
+        setCName(""); setCEmoji("🎁"); setColSheet(false);
+        showToast("✦ Collection created!");
+      }
+      function deleteCollection(id){
+        setAlbums(prev=>prev.filter(a=>a.id!==id));
+        setView("home"); showToast("Collection removed");
+      }
+      function addIdea(){
+        if(!iText.trim()&&!iPhoto) return;
+        const idea={id:uid(),text:iText.trim(),note:iNote.trim(),photo:iPhoto,preview:isURL(iText.trim())?iPrev:null,claimed:false,claimedBy:"",addedAt:Date.now()};
+        setAlbums(prev=>prev.map(a=>a.id===view?{...a,items:[idea,...a.items]}:a));
+        setIText(""); setINote(""); setIPhoto(null); setIPrev(null);
+        setIdeaSheet(false); showToast("✦ Idea added!");
+      }
+      function claimIdea(wishId){
+        if(!claimer.trim()) return;
+        setAlbums(prev=>prev.map(a=>a.id===view?{...a,items:a.items.map(i=>i.id===wishId?{...i,claimed:true,claimedBy:claimer.trim()}:i)}:a));
+        showToast(`✦ ${claimer} is gifting this!`);
+        setClaimSheet(null); setClaimer("");
+      }
+      function unclaimIdea(wishId){
+        setAlbums(prev=>prev.map(a=>a.id===view?{...a,items:a.items.map(i=>i.id===wishId?{...i,claimed:false,claimedBy:""}:i)}:a));
+        showToast("Unclaimed");
+      }
+      function deleteIdea(wishId){
+        setAlbums(prev=>prev.map(a=>a.id===view?{...a,items:a.items.filter(i=>i.id!==wishId)}:a));
+        showToast("Removed");
+      }
+      function handlePhoto(e){
+        const f=e.target.files?.[0]; if(!f) return;
+        const r=new FileReader();
+        r.onload=ev=>setIPhoto(ev.target.result);
+        r.readAsDataURL(f); e.target.value="";
+      }
+      function share(){
+        navigator.clipboard?.writeText(window.location.href)
+          .then(()=>showToast("✦ Link copied!"))
+          .catch(()=>showToast("Copy the URL from your browser address bar"));
+      }
+
+      const curCol=albums.find(a=>a.id===view);
+      const allIdeas=albums.flatMap(a=>a.items||[]);
+      const claimed=allIdeas.filter(i=>i.claimed);
+      const TABS=[{l:"Collections",i:"◈"},{l:"All Ideas",i:"◇"},{l:"Claimed",i:"◆"}];
+
+      return (
+        <div style={{fontFamily:"'Space Grotesk',sans-serif",background:C.bg,minHeight:"100vh",color:C.text,position:"relative"}}>
+          <BG/><Particles/><Rings/><Blips/>
+
+          <div style={{maxWidth:500,margin:"0 auto",minHeight:"100vh",display:"flex",flexDirection:"column",position:"relative",zIndex:2}}>
+
+            {/* Header */}
+            <div style={{padding:"18px 18px 0",position:"sticky",top:0,zIndex:50,background:"rgba(8,8,8,0.86)",backdropFilter:"blur(24px)",borderBottom:"1px solid rgba(255,140,0,0.09)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  {view!=="home"&&<button onClick={()=>setView("home")} style={{background:"none",border:"none",color:C.text,fontSize:20,cursor:"pointer",opacity:0.7,paddingRight:4}}>‹</button>}
+                  <div>
+                    <div style={{fontSize:10,color:C.oText,fontWeight:700,letterSpacing:"2px",marginBottom:2}}><Dot/>{view==="home"?"WISH BOARD":"COLLECTION"}</div>
+                    <div style={{fontSize:20,fontWeight:700,letterSpacing:"-0.3px"}}>{view==="home"?"My Wish Board":curCol?.name||""}</div>
+                  </div>
+                </div>
+                <button onClick={share} style={{background:"rgba(255,140,0,0.1)",border:"1px solid rgba(255,140,0,0.25)",borderRadius:10,padding:"8px 14px",color:C.oText,fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",letterSpacing:"0.8px"}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  SHARE
+                </button>
+              </div>
+              {view==="home"&&(
+                <div style={{display:"flex",gap:2,background:"rgba(255,255,255,0.03)",borderRadius:10,padding:3,border:"1px solid rgba(255,255,255,0.05)"}}>
+                  {TABS.map(t=>(
+                    <button key={t.l} onClick={()=>setTab(t.l)} style={{flex:1,padding:"8px 4px",border:"none",borderRadius:7,cursor:"pointer",background:tab===t.l?"rgba(255,140,0,0.11)":"transparent",color:tab===t.l?C.oText:C.muted,fontSize:11,fontWeight:700,fontFamily:"inherit",letterSpacing:"0.5px",transition:"all 0.15s",borderBottom:tab===t.l?`2px solid ${C.orange}`:"2px solid transparent"}}>
+                      {t.i} {t.l}
+                    </button>
                   ))}
                 </div>
               )}
-
-              {activeTab==="Collections" && (
-                albums.length===0
-                  ? <div style={{textAlign:"center",paddingTop:70,animation:"fadeUp 0.4s ease"}}>
-                      <div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◈</div>
-                      <p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>No collections yet.<br/>Create your first one below.</p>
-                    </div>
-                  : <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>
-                      {albums.map(a=><AlbumCard key={a.id} album={a} onClick={()=>setView(a.id)} />)}
-                    </div>
-              )}
-              {activeTab==="All Ideas" && (
-                allWishes.length===0
-                  ? <div style={{textAlign:"center",paddingTop:70}}><div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◇</div><p style={{color:C.muted,fontSize:14}}>No ideas yet.</p></div>
-                  : allWishes.map(item=>{
-                      const album=albums.find(a=>a.items?.some(i=>i.id===item.id));
-                      return <div key={item.id}><div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:2,letterSpacing:"1px"}}>{album?.emoji} {album?.name?.toUpperCase()}</div><WishCard item={item} readonly onClaim={()=>{}} onUnclaim={()=>{}} onDelete={()=>{}} /></div>;
-                    })
-              )}
-              {activeTab==="Claimed" && (
-                claimedWishes.length===0
-                  ? <div style={{textAlign:"center",paddingTop:70}}><div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◆</div><p style={{color:C.muted,fontSize:14}}>Nothing claimed yet.</p></div>
-                  : claimedWishes.map(item=>{
-                      const album=albums.find(a=>a.items?.some(i=>i.id===item.id));
-                      return <div key={item.id}><div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:2,letterSpacing:"1px"}}>{album?.emoji} {album?.name?.toUpperCase()}</div><WishCard item={item} readonly onClaim={()=>{}} onUnclaim={()=>{}} onDelete={()=>{}} /></div>;
-                    })
-              )}
-            </>
-          )}
-
-          {view!=="home" && currentAlbum && (
-            <>
-              <GlassCard orange style={{padding:16,marginBottom:20,display:"flex",gap:16,alignItems:"center"}}>
-                <AlbumCover album={currentAlbum} size={72} />
-                <div style={{flex:1}}>
-                  <div style={{fontSize:10,color:C.orangeText,fontWeight:700,letterSpacing:"2px",marginBottom:6}}>COLLECTION</div>
-                  <div style={{fontSize:20,fontWeight:700}}>{currentAlbum.name}</div>
-                  <div style={{display:"flex",gap:12,marginTop:6}}>
-                    <span style={{fontSize:11,color:C.muted}}>{currentAlbum.items?.length||0} ideas</span>
-                    <span style={{fontSize:11,color:C.orange}}>{(currentAlbum.items||[]).filter(i=>i.claimed).length} claimed</span>
-                  </div>
-                </div>
-                <button onClick={()=>deleteAlbum(currentAlbum.id)} style={{background:"none",border:"none",color:"rgba(255,80,80,0.5)",fontSize:18,cursor:"pointer"}}>×</button>
-              </GlassCard>
-              {!currentAlbum.items?.length
-                ? <div style={{textAlign:"center",paddingTop:50,animation:"fadeUp 0.4s ease"}}><div style={{fontSize:46,marginBottom:12,opacity:0.4}}>◇</div><p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>Empty collection.<br/>Add your first idea below.</p></div>
-                : currentAlbum.items.map(item=>(
-                    <WishCard key={item.id} item={item}
-                      onClaim={(id,title)=>{setClaimSheet({wishId:id,title});setClaimerName("");}}
-                      onUnclaim={unclaimWish} onDelete={deleteWish}
-                    />
-                  ))
-              }
-            </>
-          )}
-        </div>
-
-        {/* FAB */}
-        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:500,padding:"12px 16px 30px",background:`linear-gradient(to top,${C.bg} 60%,transparent)`,zIndex:50}}>
-          <button
-            onClick={()=>view==="home"?setNewAlbumOpen(true):setAddWishOpen(true)}
-            style={{
-              width:"100%",padding:14,
-              background:"linear-gradient(135deg,#FF8C00,#FF4500)",
-              color:"#fff",border:"none",borderRadius:14,
-              fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-              letterSpacing:"1px",textTransform:"uppercase",
-              boxShadow:"0 6px 28px rgba(255,140,0,0.38)",
-              position:"relative",overflow:"hidden",
-            }}
-          >
-            {view==="home" ? "✦  New Collection" : "✦  New Idea"}
-          </button>
-        </div>
-      </div>
-
-      {/* Sheet: New Collection */}
-      <Sheet open={newAlbumOpen} onClose={()=>setNewAlbumOpen(false)} title="New Collection">
-        <p style={{fontSize:11,color:C.muted,marginBottom:10,letterSpacing:"1px"}}>CHOOSE AN ICON</p>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
-          {EMOJIS.map(e=>(
-            <button key={e} onClick={()=>setAEmoji(e)} style={{fontSize:20,padding:"7px 10px",borderRadius:10,cursor:"pointer",background:aEmoji===e?"rgba(255,140,0,0.15)":"rgba(255,255,255,0.03)",border:aEmoji===e?"1.5px solid rgba(255,140,0,0.5)":"1px solid rgba(255,255,255,0.06)",transition:"all 0.15s"}}>{e}</button>
-          ))}
-        </div>
-        <FInput value={aName} onChange={e=>setAName(e.target.value)} placeholder="Collection name…" onKeyDown={e=>e.key==="Enter"&&createAlbum()} />
-        <div style={{display:"flex",gap:10,marginTop:4}}>
-          <Btn ghost onClick={()=>{setNewAlbumOpen(false);setAName("");}}>Cancel</Btn>
-          <Btn onClick={createAlbum} disabled={!aName.trim()} style={{flex:2}}>Create ✦</Btn>
-        </div>
-      </Sheet>
-
-      {/* Sheet: New Idea */}
-      <Sheet open={addWishOpen} onClose={()=>{setAddWishOpen(false);setWText("");setWNote("");setWPhoto(null);setWPreview(null);}} title="New Idea">
-        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handlePhoto} />
-        {wPhoto ? (
-          <div style={{position:"relative",marginBottom:10}}>
-            <img src={wPhoto} alt="" style={{width:"100%",height:180,objectFit:"cover",borderRadius:12,display:"block"}} />
-            <button onClick={()=>setWPhoto(null)} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.7)",color:"#fff",border:"none",borderRadius:99,width:26,height:26,fontSize:12,cursor:"pointer"}}>✕</button>
-          </div>
-        ) : (
-          <button onClick={()=>fileRef.current?.click()} style={{width:"100%",padding:12,marginBottom:10,background:"rgba(255,255,255,0.02)",border:"1.5px dashed rgba(255,140,0,0.22)",borderRadius:10,color:C.muted,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,letterSpacing:"0.5px"}}>
-            📷  ADD PHOTO
-          </button>
-        )}
-        <FInput value={wText} onChange={e=>setWText(e.target.value)} rows={3}
-          placeholder="Describe your idea, or paste any link (Instagram, Shopee, Facebook, TikTok…)" />
-
-        {wPreviewLoading && (
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0 12px"}}>
-            <div style={{width:13,height:13,border:"2px solid rgba(255,140,0,0.2)",borderTopColor:C.orange,borderRadius:"50%",animation:"spin 0.7s linear infinite",flexShrink:0}} />
-            <span style={{fontSize:11,color:C.muted,letterSpacing:"0.5px"}}>FETCHING PREVIEW…</span>
-          </div>
-        )}
-        {wPreview && !wPreviewLoading && (
-          <GlassCard orange style={{overflow:"hidden",marginBottom:10,borderRadius:10,position:"relative"}}>
-            {wPreview.image ? (
-              <div style={{display:"flex"}}>
-                <img src={wPreview.image} alt="" referrerPolicy="no-referrer"
-                  style={{width:80,height:80,objectFit:"cover",flexShrink:0}}
-                  onError={e=>e.target.style.display="none"} />
-                <div style={{padding:"10px 12px",minWidth:0}}>
-                  <div style={{fontSize:10,color:C.orangeText,fontWeight:700,letterSpacing:"1px",marginBottom:3}}>
-                    {getPlatformIcon(wText)} {(wPreview.publisher||"").toUpperCase()}
-                  </div>
-                  <div style={{fontSize:13,fontWeight:600,color:C.text,lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>
-                    {wPreview.title}
-                  </div>
-                </div>
-              </div>
-            ) : wPreview.blocked ? (
-              <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px",background:wPreview.platformBg,position:"relative"}}>
-                <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.45)"}} />
-                <img src={wPreview.logoUrl} alt="" style={{width:42,height:42,borderRadius:10,flexShrink:0,zIndex:1,position:"relative"}} onError={e=>e.target.style.display="none"} />
-                <div style={{zIndex:1,position:"relative"}}>
-                  <div style={{fontSize:12,fontWeight:700,color:"#fff",marginBottom:4}}>{getPlatformIcon(wText)} {getDomain(wText).toUpperCase()}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",lineHeight:1.5}}>
-                    This platform blocks previews — tap 📷 Add Photo above to add a thumbnail manually.
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </GlassCard>
-        )}
-
-        <FInput value={wNote} onChange={e=>setWNote(e.target.value)} placeholder="Note: size, color, price… (optional)" />
-        <div style={{display:"flex",gap:10,marginTop:4}}>
-          <Btn ghost onClick={()=>{setAddWishOpen(false);setWText("");setWNote("");setWPhoto(null);setWPreview(null);}}>Cancel</Btn>
-          <Btn onClick={addWish} disabled={!wText.trim()&&!wPhoto} style={{flex:2}}>Add Idea ✦</Btn>
-        </div>
-      </Sheet>
-
-      {/* Sheet: Claim */}
-      <Sheet open={!!claimSheet} onClose={()=>setClaimSheet(null)} title="Claim this item">
-        {claimSheet && (
-          <>
-            <GlassCard orange style={{padding:"10px 14px",marginBottom:16}}>
-              <p style={{fontSize:13,color:C.muted,lineHeight:1.5,fontStyle:"italic"}}>
-                "{(claimSheet.title||"").slice(0,60)}{(claimSheet.title||"").length>60?"…":""}"
-              </p>
-            </GlassCard>
-            <FInput value={claimerName} onChange={e=>setClaimerName(e.target.value)}
-              placeholder="Your name (e.g. Mom, Alex…)"
-              onKeyDown={e=>e.key==="Enter"&&claimWish(claimSheet.wishId)} />
-            <div style={{display:"flex",gap:10,marginTop:4}}>
-              <Btn ghost onClick={()=>setClaimSheet(null)}>Cancel</Btn>
-              <Btn onClick={()=>claimWish(claimSheet.wishId)} disabled={!claimerName.trim()} style={{flex:2}}>I'll gift this ✦</Btn>
             </div>
-          </>
-        )}
-      </Sheet>
 
-      <Toast msg={toast.msg} visible={toast.visible} />
-    </div>
-  );
-}
+            {/* Content */}
+            <div style={{flex:1,padding:"18px 16px 100px"}}>
+              {view==="home"&&(
+                <>
+                  {albums.length>0&&(
+                    <div style={{display:"flex",gap:8,marginBottom:18}}>
+                      {[{l:"COLLECTIONS",v:albums.length},{l:"IDEAS",v:allIdeas.length},{l:"CLAIMED",v:claimed.length}].map(s=>(
+                        <Glass key={s.l} style={{flex:1,padding:"10px 12px",textAlign:"center"}}>
+                          <div style={{fontSize:17,fontWeight:800,color:C.oText}}>{s.v}</div>
+                          <div style={{fontSize:9,color:C.muted,letterSpacing:"1.5px",marginTop:2}}>{s.l}</div>
+                        </Glass>
+                      ))}
+                    </div>
+                  )}
+                  {tab==="Collections"&&(
+                    albums.length===0
+                      ?<div style={{textAlign:"center",paddingTop:70,animation:"fadeUp 0.4s ease"}}><div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◈</div><p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>No collections yet.<br/>Tap the button below to start.</p></div>
+                      :<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}}>{albums.map(a=><AlbumCard key={a.id} album={a} onClick={()=>setView(a.id)}/>)}</div>
+                  )}
+                  {tab==="All Ideas"&&(
+                    allIdeas.length===0
+                      ?<div style={{textAlign:"center",paddingTop:70}}><div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◇</div><p style={{color:C.muted,fontSize:14}}>No ideas yet.</p></div>
+                      :allIdeas.map(item=>{ const col=albums.find(a=>a.items?.some(i=>i.id===item.id)); return <div key={item.id}><div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:2,letterSpacing:"1px"}}>{col?.emoji} {col?.name?.toUpperCase()}</div><IdeaCard item={item} readonly onClaim={()=>{}} onUnclaim={()=>{}} onDelete={()=>{}}/></div>; })
+                  )}
+                  {tab==="Claimed"&&(
+                    claimed.length===0
+                      ?<div style={{textAlign:"center",paddingTop:70}}><div style={{fontSize:48,marginBottom:16,opacity:0.4}}>◆</div><p style={{color:C.muted,fontSize:14}}>Nothing claimed yet.</p></div>
+                      :claimed.map(item=>{ const col=albums.find(a=>a.items?.some(i=>i.id===item.id)); return <div key={item.id}><div style={{fontSize:10,color:C.muted,marginBottom:4,paddingLeft:2,letterSpacing:"1px"}}>{col?.emoji} {col?.name?.toUpperCase()}</div><IdeaCard item={item} readonly onClaim={()=>{}} onUnclaim={()=>{}} onDelete={()=>{}}/></div>; })
+                  )}
+                </>
+              )}
+
+              {view!=="home"&&curCol&&(
+                <>
+                  <Glass orange style={{padding:16,marginBottom:20,display:"flex",gap:16,alignItems:"center"}}>
+                    <Cover album={curCol} size={72}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:C.oText,fontWeight:700,letterSpacing:"2px",marginBottom:6}}>COLLECTION</div>
+                      <div style={{fontSize:20,fontWeight:700}}>{curCol.name}</div>
+                      <div style={{display:"flex",gap:12,marginTop:6}}>
+                        <span style={{fontSize:11,color:C.muted}}>{curCol.items?.length||0} ideas</span>
+                        <span style={{fontSize:11,color:C.orange}}>{(curCol.items||[]).filter(i=>i.claimed).length} claimed</span>
+                      </div>
+                    </div>
+                    <button onClick={()=>deleteCollection(curCol.id)} style={{background:"none",border:"none",color:"rgba(255,80,80,0.5)",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
+                  </Glass>
+                  {!curCol.items?.length
+                    ?<div style={{textAlign:"center",paddingTop:50,animation:"fadeUp 0.4s ease"}}><div style={{fontSize:46,marginBottom:12,opacity:0.4}}>◇</div><p style={{color:C.muted,fontSize:14,lineHeight:1.8}}>Empty collection.<br/>Add your first idea below.</p></div>
+                    :curCol.items.map(item=><IdeaCard key={item.id} item={item} onClaim={(id,t)=>{setClaimSheet({id,title:t});setClaimer("");}} onUnclaim={unclaimIdea} onDelete={deleteIdea}/>)
+                  }
+                </>
+              )}
+            </div>
+
+            {/* FAB */}
+            <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:500,padding:"12px 16px 30px",background:`linear-gradient(to top,${C.bg} 60%,transparent)`,zIndex:50}}>
+              <button onClick={()=>view==="home"?setColSheet(true):setIdeaSheet(true)} style={{width:"100%",padding:14,background:"linear-gradient(135deg,#FF8C00,#FF4500)",color:"#fff",border:"none",borderRadius:14,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",textTransform:"uppercase",boxShadow:"0 6px 28px rgba(255,140,0,0.38)"}}>
+                {view==="home"?"✦  New Collection":"✦  New Idea"}
+              </button>
+            </div>
+          </div>
+
+          {/* Sheet: New Collection */}
+          <Sheet open={colSheet} onClose={()=>setColSheet(false)} title="New Collection">
+            <p style={{fontSize:11,color:C.muted,marginBottom:10,letterSpacing:"1px"}}>CHOOSE AN ICON</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+              {EMOJIS.map(e=><button key={e} onClick={()=>setCEmoji(e)} style={{fontSize:20,padding:"7px 10px",borderRadius:10,cursor:"pointer",background:cEmoji===e?"rgba(255,140,0,0.15)":"rgba(255,255,255,0.03)",border:cEmoji===e?"1.5px solid rgba(255,140,0,0.5)":"1px solid rgba(255,255,255,0.06)",transition:"all 0.15s"}}>{e}</button>)}
+            </div>
+            <FInput value={cName} onChange={e=>setCName(e.target.value)} placeholder="Collection name…" onKeyDown={e=>e.key==="Enter"&&createCollection()}/>
+            <div style={{display:"flex",gap:10,marginTop:4}}>
+              <GhostBtn onClick={()=>{setColSheet(false);setCName("");}}>Cancel</GhostBtn>
+              <PrimaryBtn onClick={createCollection} disabled={!cName.trim()}>Create ✦</PrimaryBtn>
+            </div>
+          </Sheet>
+
+          {/* Sheet: New Idea */}
+          <Sheet open={ideaSheet} onClose={()=>{setIdeaSheet(false);setIText("");setINote("");setIPhoto(null);setIPrev(null);}} title="New Idea">
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handlePhoto}/>
+            {iPhoto?(
+              <div style={{position:"relative",marginBottom:10}}>
+                <img src={iPhoto} alt="" style={{width:"100%",height:180,objectFit:"cover",borderRadius:12,display:"block"}}/>
+                <button onClick={()=>setIPhoto(null)} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.7)",color:"#fff",border:"none",borderRadius:99,width:26,height:26,fontSize:12,cursor:"pointer"}}>✕</button>
+              </div>
+            ):(
+              <button onClick={()=>fileRef.current?.click()} style={{width:"100%",padding:12,marginBottom:10,background:"rgba(255,255,255,0.02)",border:"1.5px dashed rgba(255,140,0,0.22)",borderRadius:10,color:C.muted,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,letterSpacing:"0.5px"}}>
+                📷  ADD PHOTO (OPTIONAL)
+              </button>
+            )}
+            <FInput value={iText} onChange={e=>setIText(e.target.value)} rows={3} placeholder="Describe your idea, or paste any link (Shopee, Instagram, TikTok…)"/>
+            {iPrevLoading&&(
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0 10px"}}>
+                <div style={{width:13,height:13,border:"2px solid rgba(255,140,0,0.2)",borderTopColor:C.orange,borderRadius:"50%",animation:"spin 0.7s linear infinite",flexShrink:0}}/>
+                <span style={{fontSize:11,color:C.muted,letterSpacing:"0.5px"}}>FETCHING PREVIEW…</span>
+              </div>
+            )}
+            {iPrev&&!iPrevLoading&&(
+              <Glass orange style={{overflow:"hidden",marginBottom:10,borderRadius:10,position:"relative"}}>
+                {iPrev.image?(
+                  <div style={{display:"flex"}}>
+                    <img src={iPrev.image} alt="" referrerPolicy="no-referrer" style={{width:80,height:80,objectFit:"cover",flexShrink:0}} onError={e=>e.target.style.display="none"}/>
+                    <div style={{padding:"10px 12px",minWidth:0}}>
+                      <div style={{fontSize:10,color:C.oText,fontWeight:700,letterSpacing:"1px",marginBottom:3}}>{siteIcon(iText)} {(iPrev.publisher||"").toUpperCase()}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:C.text,lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{iPrev.title}</div>
+                    </div>
+                  </div>
+                ):iPrev.blocked?(
+                  <div style={{display:"flex",alignItems:"center",gap:12,padding:"13px",background:iPrev.platformBg,position:"relative"}}>
+                    <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.44)"}}/>
+                    <img src={iPrev.logoUrl} alt="" style={{width:40,height:40,borderRadius:10,flexShrink:0,zIndex:1,position:"relative"}} onError={e=>e.target.style.display="none"}/>
+                    <div style={{zIndex:1,position:"relative"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#fff",marginBottom:4}}>{siteIcon(iText)} {domain(iText).toUpperCase()}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",lineHeight:1.5}}>This platform blocks previews.<br/>Tap 📷 above to add a photo manually.</div>
+                    </div>
+                  </div>
+                ):null}
+              </Glass>
+            )}
+            <FInput value={iNote} onChange={e=>setINote(e.target.value)} placeholder="Note: size, color, price… (optional)"/>
+            <div style={{display:"flex",gap:10,marginTop:4}}>
+              <GhostBtn onClick={()=>{setIdeaSheet(false);setIText("");setINote("");setIPhoto(null);setIPrev(null);}}>Cancel</GhostBtn>
+              <PrimaryBtn onClick={addIdea} disabled={!iText.trim()&&!iPhoto}>Add Idea ✦</PrimaryBtn>
+            </div>
+          </Sheet>
+
+          {/* Sheet: Claim */}
+          <Sheet open={!!claimSheet} onClose={()=>setClaimSheet(null)} title="Claim this item">
+            {claimSheet&&(
+              <>
+                <Glass orange style={{padding:"10px 14px",marginBottom:16}}>
+                  <p style={{fontSize:13,color:C.muted,lineHeight:1.5,fontStyle:"italic"}}>"{(claimSheet.title||"").slice(0,60)}{(claimSheet.title||"").length>60?"…":""}"</p>
+                </Glass>
+                <FInput value={claimer} onChange={e=>setClaimer(e.target.value)} placeholder="Your name (e.g. Mom, Alex…)" onKeyDown={e=>e.key==="Enter"&&claimIdea(claimSheet.id)}/>
+                <div style={{display:"flex",gap:10,marginTop:4}}>
+                  <GhostBtn onClick={()=>setClaimSheet(null)}>Cancel</GhostBtn>
+                  <PrimaryBtn onClick={()=>claimIdea(claimSheet.id)} disabled={!claimer.trim()}>I'll gift this ✦</PrimaryBtn>
+                </div>
+              </>
+            )}
+          </Sheet>
+
+          <Toast msg={toast.msg} show={toast.show}/>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>
